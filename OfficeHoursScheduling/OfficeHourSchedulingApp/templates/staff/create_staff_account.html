@@ -8,23 +8,33 @@
   <h1>Create Staff Account</h1>
 
   {% if messages %}
-    <ul class="messages">
+    <div id="popup-alert" role="alert">
       {% for message in messages %}
-        <li>{{ message }}</li>
+        <p>{{ message }}</p>
       {% endfor %}
-    </ul>
+    </div>
   {% endif %}
 
   {% if form.errors %}
     <div class="form-errors" role="alert">
-      <p>pop up error</p>
       {{ form.errors }}
     </div>
   {% endif %}
 
-  <form method="post">
+  <form method="post" action="{% url 'create_staff_account' %}">
     {% csrf_token %}
-    {{ form.as_p }}
+    <div>
+      <label for="id_name">Name</label>
+      {{ form.name }}
+    </div>
+    <div>
+      <label for="id_email">Email</label>
+      {{ form.email }}
+    </div>
+    <div>
+      <label for="id_role">Role</label>
+      {{ form.role }}
+    </div>
     <button type="submit">Create Account</button>
   </form>
 </body>

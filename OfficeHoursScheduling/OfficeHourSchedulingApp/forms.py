@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.forms import formset_factory
 
 from .models import Course
@@ -57,3 +58,47 @@ AvailabilityFormSet = formset_factory(
     AvailabilityForm, extra=0, min_num=1, validate_min=True,
     max_num=50, validate_max=True, absolute_max=50, can_delete=True,
 )
+
+
+ROLE_TO_GROUP_NAME = {
+    "instructor": "Instructor",
+    "ta": "TA",
+}
+
+
+class CreateStaffAccountForm(forms.Form):
+    name = forms.CharField(
+        max_length=150,
+        required=True,
+        error_messages={"required": "Name is required."},
+    )
+    email = forms.EmailField(
+        required=True,
+        error_messages={
+            "required": "A valid email address is required.",
+            "invalid": "Enter a valid email address.",
+        },
+    )
+    role = forms.ChoiceField(
+        choices=[("instructor", "Instructor"), ("ta", "TA")],
+        required=True,
+        error_messages={
+            "required": "Role is required.",
+            "invalid_choice": "Select a valid role (Instructor or TA).",
+        },
+    )
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip()
+        user_model = get_user_model()
+        if user_model.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError("An account with this email already exists.")
+        return email
+
+    def clean_role(self):
+        role = self.cleaned_data["role"].strip().lower()
+        group_name = ROLE_TO_GROUP_NAME.get(role)
+        if not group_name:
+            raise forms.ValidationError("Invalid role selected.")
+        group, _ = Group.objects.get_or_create(name=group_name)
+        return group

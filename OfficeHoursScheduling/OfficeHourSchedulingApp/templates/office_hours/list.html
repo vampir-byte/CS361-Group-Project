@@ -1,0 +1,26 @@
+{% extends 'courses/base.html' %}
+{% block title %}Office hours{% endblock %}
+{% block content %}
+<h1>Office hours</h1>
+{% if office_hours %}
+<table>
+  <thead><tr><th scope="col">Course</th><th scope="col">Staff</th><th scope="col">Date</th><th scope="col">Start</th><th scope="col">End</th><th scope="col">Location</th><th scope="col">Status</th>{% if is_staff_member %}<th scope="col">Action</th>{% endif %}</tr></thead>
+  <tbody>
+  {% for office_hour in office_hours %}
+    <tr>
+      <td>{{ office_hour.assignment.course.course_number }}</td>
+      <td>{% firstof office_hour.assignment.user.get_full_name office_hour.assignment.user.get_username %}</td>
+      <td>{{ office_hour.date|date:'Y-m-d' }}</td>
+      <td>{{ office_hour.start_time|time:'H:i' }}</td>
+      <td>{{ office_hour.end_time|time:'H:i' }}</td>
+      <td>{{ office_hour.location }}</td>
+      <td>{{ office_hour.get_status_display }}</td>
+      {% if is_staff_member %}<td>{% if office_hour.can_cancel %}<form method="post" action="{% url 'courses:cancel_office_hour' office_hour.pk %}">{% csrf_token %}<button class="danger">Cancel</button></form>{% endif %}</td>{% endif %}
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No upcoming office hours.</p>
+{% endif %}
+{% endblock %}

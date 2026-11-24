@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 from django.db.models import F, Q
 
 from .roles import INSTRUCTOR, TA
@@ -87,7 +87,12 @@ class Enrollment(models.Model):
 
 
 class OfficeHour(TimeRange):
+    class Status(models.TextChoices):
+        SCHEDULED = "scheduled", "Scheduled"
+        CANCELED = "canceled", "Canceled"
+
     assignment = models.ForeignKey(StaffAssignment, on_delete=models.CASCADE, related_name="office_hours")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.SCHEDULED)
 
     class Meta(TimeRange.Meta):
         abstract = False
@@ -95,11 +100,24 @@ class OfficeHour(TimeRange):
 
 
 class Reservation(models.Model):
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        CANCELED = "canceled", "Canceled"
+
     office_hour = models.ForeignKey(OfficeHour, on_delete=models.CASCADE, related_name="reservations")
     student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="office_hour_reservations")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.ACTIVE)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["office_hour", "student"], name="unique_office_hour_student")]
+
+    def save(self, *args, **kwargs):
+        with transaction.atomic():
+            if self._state.adding or self.status != self.Status.CANCELED:
+                office_hour = OfficeHour.objects.select_for_update().get(pk=self.office_hour_id)
+                if office_hour.status == OfficeHour.Status.CANCELED:
+                    raise ValidationError("Cannot create or reactivate a reservation for a canceled office hour.")
+            super().save(*args, **kwargs)
 from django.db import models
 
 # Create your models here.

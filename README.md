@@ -49,6 +49,10 @@ No custom user model or duplicate account table is introduced.
 - `/courses/<id>/delete/`: confirmation with the number/name and a permanent
   deletion warning. GET never deletes; POST requires `confirm=yes` and CSRF.
   Cancel returns to the detail page. Creation Cancel returns to the course list.
+- `/courses/office-hours/`: upcoming office hours for the signed-in user's
+  assigned staff or enrolled student courses. Staff can cancel their own
+  upcoming hours; enrolled students see canceled status and reservations are
+  retained as canceled.
 
 Creation and deletion are transactional. Validation and database failures keep
 the submitted form available and roll back partial changes. Creation rechecks
@@ -57,8 +61,8 @@ staff accounts/roles before saving. Course deletion cascades through
 Reservation`, and removes the course's `Enrollment` records. All account rows
 and other courses' records remain. `Enrollment` makes new courses available
 for the team's future student-assignment workflow. Office-hour/reservation
-models provide the deletion relationships; their booking UI is outside these
-two stories.
+models support course deletion and office-hour cancellation; booking and
+reservation-creation UI are outside this story.
 
 The repository's `main` branch contained a project configured for the missing
 `OfficeHourSchedulingApp`; this implementation supplies that app. The existing

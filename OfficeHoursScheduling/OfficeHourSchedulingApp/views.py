@@ -5,13 +5,15 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import ValidationError
 from django.db import DatabaseError, IntegrityError
 from django.db.models import Q
+from django.http import HttpResponseForbidden, HttpResponseNotFound
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views import View
 
 from . import services
 from .forms import AvailabilityFormSet, CourseForm
-from .models import Course, StaffAssignment
-from .roles import is_administrator
+from .models import Course, OfficeHour, StaffAssignment
+from .roles import INSTRUCTOR, TA, is_administrator
 
 logger = logging.getLogger(__name__)
 POSITIONS = (("instructor", "Instructor", StaffAssignment.Role.INSTRUCTOR), ("ta1", "TA 1", StaffAssignment.Role.TA), ("ta2", "TA 2", StaffAssignment.Role.TA))
@@ -118,6 +120,51 @@ class CourseDeleteView(AdministratorRequiredMixin, View):
             return render(request, "courses/delete.html", {"course": course, "error": "The course could not be deleted. Please try again."})
         messages.success(request, f"Course {course.course_number} was deleted successfully.")
         return redirect("courses:list")
+
+
+class OfficeHoursView(LoginRequiredMixin, View):
+    def get(self, request):
+        user = request.user
+        is_staff_member = user.groups.filter(name__in=(INSTRUCTOR, TA)).exists()
+        is_student = user.groups.filter(name="Student").exists()
+        if not (is_staff_member or is_student or is_administrator(user)):
+            return HttpResponseForbidden()
+
+        now = timezone.localtime()
+        office_hours = OfficeHour.objects.filter(
+            Q(date__gt=now.date()) | Q(date=now.date(), start_time__gt=now.time())
+        ).select_related(
+            "assignment__course", "assignment__user"
+        )
+        if is_staff_member:
+            office_hours = office_hours.filter(assignment__user=user)
+        elif is_student:
+            office_hours = office_hours.filter(assignment__course__enrollments__student=user)
+
+        for office_hour in office_hours:
+            office_hour.can_cancel = (
+                is_staff_member and office_hour.status != OfficeHour.Status.CANCELED
+            )
+        return render(
+            request,
+            "office_hours/list.html",
+            {"office_hours": office_hours, "is_staff_member": is_staff_member},
+        )
+
+
+class OfficeHourCancelView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        if not request.user.groups.filter(name__in=(INSTRUCTOR, TA)).exists():
+            return HttpResponseForbidden()
+        try:
+            services.cancel_office_hour(pk, request.user.pk)
+        except OfficeHour.DoesNotExist:
+            return HttpResponseNotFound()
+        except ValidationError as error:
+            messages.error(request, " ".join(error.messages))
+        else:
+            messages.success(request, "Office hour was canceled.")
+        return redirect("courses:office_hours")
 from django.shortcuts import render
 
 # Create your views here.

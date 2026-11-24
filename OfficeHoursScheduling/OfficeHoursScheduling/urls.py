@@ -25,9 +25,4 @@ urlpatterns = [
     path('logout/', LogoutView.as_view(), name='logout'),
     path('courses/', include('OfficeHourSchedulingApp.urls')),
     path('', RedirectView.as_view(pattern_name='courses:list', permanent=False)),
-from django.urls import include, path
-
-urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('', include('Accounts.urls')),
 ]

@@ -9,6 +9,7 @@
 </head>
 <body>
 <header><a href="{% url 'courses:list' %}">Office Hours · Courses</a>
+{% if user.is_authenticated %}<a href="{% url 'courses:office_hours' %}">Office hours</a>{% endif %}
 {% if user.is_authenticated %}<form method="post" action="{% url 'logout' %}">{% csrf_token %}<span>{{ user.get_username }}</span> <button>Log out</button></form>{% endif %}</header>
 <main>
   {% for message in messages %}<p class="notice {{ message.tags }}" role="status">{{ message }}</p>{% endfor %}

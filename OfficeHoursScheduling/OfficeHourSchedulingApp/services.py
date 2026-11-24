@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from .models import Availability, Course, StaffAssignment
+from .models import Availability, Course, OfficeHour, Reservation, StaffAssignment
 
 
 @transaction.atomic
@@ -45,3 +45,33 @@ def delete_course(course_id):
     """Cascade only from the selected course, preserving all user accounts."""
     course = Course.objects.select_for_update().get(pk=course_id)
     course.delete()
+
+
+@transaction.atomic
+def cancel_office_hour(office_hour_id, staff_id, *, now=None):
+    """Cancel an upcoming office hour owned by the staff member and its reservations."""
+    from datetime import datetime
+
+    from django.utils import timezone
+
+    office_hour = OfficeHour.objects.select_for_update().filter(
+        pk=office_hour_id, assignment__user_id=staff_id
+    ).first()
+    if office_hour is None:
+        raise OfficeHour.DoesNotExist
+    if office_hour.status == OfficeHour.Status.CANCELED:
+        return office_hour
+
+    start = timezone.make_aware(
+        datetime.combine(office_hour.date, office_hour.start_time),
+        timezone.get_current_timezone(),
+    )
+    if start <= (now or timezone.now()):
+        raise ValidationError("Only upcoming office hours can be canceled.")
+
+    office_hour.status = OfficeHour.Status.CANCELED
+    office_hour.save(update_fields=["status"])
+    Reservation.objects.filter(office_hour=office_hour).exclude(
+        status=Reservation.Status.CANCELED
+    ).update(status=Reservation.Status.CANCELED)
+    return office_hour

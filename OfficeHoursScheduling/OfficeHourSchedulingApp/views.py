@@ -130,7 +130,10 @@ class OfficeHoursView(LoginRequiredMixin, View):
         if not (is_staff_member or is_student or is_administrator(user)):
             return HttpResponseForbidden()
 
-        office_hours = OfficeHour.objects.filter(date__gte=timezone.localdate()).select_related(
+        now = timezone.localtime()
+        office_hours = OfficeHour.objects.filter(
+            Q(date__gt=now.date()) | Q(date=now.date(), start_time__gt=now.time())
+        ).select_related(
             "assignment__course", "assignment__user"
         )
         if is_staff_member:
@@ -138,14 +141,9 @@ class OfficeHoursView(LoginRequiredMixin, View):
         elif is_student:
             office_hours = office_hours.filter(assignment__course__enrollments__student=user)
 
-        now = timezone.localtime()
         for office_hour in office_hours:
-            office_hour.can_cancel = is_staff_member and (
-                office_hour.status != OfficeHour.Status.CANCELED
-                and (
-                    office_hour.date > now.date()
-                    or (office_hour.date == now.date() and office_hour.start_time > now.time())
-                )
+            office_hour.can_cancel = (
+                is_staff_member and office_hour.status != OfficeHour.Status.CANCELED
             )
         return render(
             request,

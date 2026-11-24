@@ -113,7 +113,7 @@ class Reservation(models.Model):
 
     def save(self, *args, **kwargs):
         with transaction.atomic():
-            if self.status != self.Status.CANCELED:
+            if self._state.adding or self.status != self.Status.CANCELED:
                 office_hour = OfficeHour.objects.select_for_update().get(pk=self.office_hour_id)
                 if office_hour.status == OfficeHour.Status.CANCELED:
                     raise ValidationError("Cannot create or reactivate a reservation for a canceled office hour.")

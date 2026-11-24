@@ -65,10 +65,27 @@ class OfficeHourCancellationTests(TestCase):
         self.office_hour.status = OfficeHour.Status.CANCELED
         self.office_hour.save(update_fields=["status"])
 
-        with self.assertRaises(ValidationError):
-            Reservation.objects.create(
-                office_hour=self.office_hour, student=self.other_student
-            )
+        for status in (Reservation.Status.ACTIVE, Reservation.Status.CANCELED):
+            with self.subTest(status=status), self.assertRaises(ValidationError):
+                Reservation.objects.create(
+                    office_hour=self.office_hour,
+                    student=self.other_student,
+                    status=status,
+                )
+
+    def test_repeated_cancellation_cancels_any_remaining_reservations(self):
+        self.office_hour.status = OfficeHour.Status.CANCELED
+        self.office_hour.save(update_fields=["status"])
+        Reservation.objects.filter(pk=self.reservation.pk).update(
+            status=Reservation.Status.ACTIVE
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.post(self.url)
+
+        self.assertRedirects(response, reverse("courses:office_hours"))
+        self.reservation.refresh_from_db()
+        self.assertEqual(self.reservation.status, Reservation.Status.CANCELED)
 
     def test_student_sees_canceled_status_for_enrolled_course(self):
         self.office_hour.status = OfficeHour.Status.CANCELED
